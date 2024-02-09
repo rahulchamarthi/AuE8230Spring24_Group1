@@ -1,0 +1,12 @@
+<package>
+  <description brief="assignment2b_turtlebot3">
+
+     assignment2b_turtlebot3
+
+  </description>
+  <author>Rahul Chamarthi</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/assignment2b_turtlebot3</url>
+
+</package>
