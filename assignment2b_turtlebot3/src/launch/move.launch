@@ -1,0 +1,18 @@
+<launch>
+  
+  <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_empty_world.launch" />
+
+  
+  <arg name="code" />
+
+  <group if="$(eval code == 'circle')">
+      <node pkg="assignment2b_turtlebot3" type="circle.py" name="circle" output="screen" />
+  </group>
+
+  <group if="$(eval code == 'square')">
+
+      <node pkg="assignment2b_turtlebot3" type="square.py" name="square" output="screen" />
+  </group>
+
+   
+</launch>
