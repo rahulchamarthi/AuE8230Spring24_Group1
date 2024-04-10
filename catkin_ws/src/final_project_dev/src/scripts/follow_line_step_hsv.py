@@ -6,13 +6,18 @@ from cv_bridge import CvBridge, CvBridgeError
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from move_robot import MoveTurtlebot3
+from darknet_ros_msgs.msg import BoundingBoxes
 
 class LineFollower(object):
 
     def __init__(self):
         self.bridge_object = CvBridge()
+        self.object_detection_sub = rospy.Subscriber("/darknet_ros/bounding_boxes", BoundingBoxes, self.object_detection_callback)
         self.image_sub = rospy.Subscriber("/camera/image_raw",Image,self.camera_callback)
+        # self.image_sub = rospy.Subscriber("/image_rgb",Image,self.camera_callback)
+        #self.object_detection_sub = rospy.Subscriber("/darknet_ros/bounding_boxes", BoundingBox, self.object_detection_callback)
         self.moveTurtlebot3_object = MoveTurtlebot3()
+        self.objects = BoundingBoxes()
         self.twist = Twist()
         self.twist.linear.x = 0.0
         self.twist.linear.y = 0.0
@@ -24,20 +29,37 @@ class LineFollower(object):
         self.cx = 0
         self.cx_int = 0
         self.cx_upper = 0
+        self.stop_sign_detected = False
+
+    def object_detection_callback(self, data):
+        self.objects = data
+        for i in range(len(self.objects.bounding_boxes)):
+            if (self.objects.bounding_boxes[i].Class == "stop sign" and self.objects.bounding_boxes[i].probability > 0.5):
+                print(self.objects.bounding_boxes[i].probability)
+                print("stop sign detected")
+                self.stop_sign_detected = True
+
 
     def camera_callback(self, data):
-        # We select bgr8 because its the OpneCV encoding by default
+# neeed to change subscirbed image to rgb image
+
+        # We select bgr8 because its the opneCV encoding by default
         cv_image = self.bridge_object.imgmsg_to_cv2(data, desired_encoding="bgr8")
+        #cv_image = self.bridge_object.imgmsg_to_cv2(data, desired_encoding="rgb8")
 
         # We get image dimensions and crop the parts of the image we dont need
         height, width, channels = cv_image.shape
         # crop_img = cv_image[int((height/2)+100):int((height/2)+120)][1:int(width)]
         crop_img = cv_image[int((height/2))+80:-1,:]
-        crop_img_upper = cv_image[int((height/2))+10:-60,:]
+        # crop_img_upper = cv_image[int((height/2))+10:-60,:]
+        crop_img_upper = cv_image[int((height/2)):-60,:]
 
         # Convert from RGB to HSV
         hsv = cv2.cvtColor(crop_img, cv2.COLOR_BGR2HSV)
         hsv_upper = cv2.cvtColor(crop_img_upper, cv2.COLOR_BGR2HSV)
+
+        # hsv = cv2.cvtColor(crop_img, cv2.COLOR_RGB2HSV)
+        # hsv_upper = cv2.cvtColor(crop_img_upper, cv2.COLOR_RGB2HSV)
 
         # Define the Yellow Colour in HSV
 
@@ -89,26 +111,29 @@ class LineFollower(object):
         cx_error = (self.cx-width/2)
         error_derivative = cx_error-self.cx_prev
 
-        print(-0.003*cx_error, - 0.001*(error_derivative), - 0.0001*self.cx_int)
+        # print(-0.003*cx_error, - 0.001*(error_derivative), - 0.0001*self.cx_int)
 
         # print(np.sum(mask))
-        print(np.sum(mask_upper))
-        if (np.sum(mask)==0 and np.sum(mask_upper)==0):
+        # print(self.objects)
+        if (np.sum(mask)==0 and np.sum(mask_upper)==0 and self.stop_sign_detected!=True):
             self.twist.linear.x = 0.0
             self.twist.angular.z = 0.15
             self.cx_int = 0
             self.cx_prev = 0
-        elif (np.sum(mask)==0):
-            self.twist.linear.x = 0.05
+        elif (np.sum(mask)==0 and self.stop_sign_detected!=True):
+            self.twist.linear.x = 0.04
             self.twist.angular.z = -0.001*(self.cx_upper-width/2)
+        elif (self.stop_sign_detected == True):
+            self.twist.linear.x = 0.0
+            self.twist.angular.z = 0.0
         else:
-            self.twist.linear.x = 0.05
+            self.twist.linear.x = 0.06
             self.twist.angular.z = -0.003*cx_error - 0.002*(error_derivative) - 0.0001*self.cx_int
             self.cx_prev = cx_error
             self.cx_int = self.cx_int + cx_error
         
         # self.twist.angular.z = -0.001*(cx-width/2)
-        rospy.loginfo("ANGULAR VALUE SENT===>"+str(self.twist.angular.z))
+        # rospy.loginfo("ANGULAR VALUE SENT===>"+str(self.twist.angular.z))
         # Make it start turning
         self.moveTurtlebot3_object.move_robot(self.twist)
 

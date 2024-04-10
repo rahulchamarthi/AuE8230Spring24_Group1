@@ -83,9 +83,9 @@ def wallfollowing_controller():
 		print(P_output)
 
 		#define min aad max ranges of lin_vel and ang_vel
-		angular_zvel = np.clip(P_output,-1.2,1.2)
+		angular_zvel = np.clip(P_output,-0.4,0.4)
 
-		linear_vel   = np.clip((fw_d-0.2),-0.1,0.4)
+		linear_vel   = np.clip((0.08),-0.1,0.22)
 		print(x)
 
 		print('distance from right wall  =',rw_d)
