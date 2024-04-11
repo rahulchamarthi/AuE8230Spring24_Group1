@@ -2,12 +2,56 @@
 import rospy
 import cv2
 import numpy as np
+import time
 from cv_bridge import CvBridge, CvBridgeError
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int16
+
+from sensor_msgs.msg import LaserScan
 from move_robot import MoveTurtlebot3
 from darknet_ros_msgs.msg import BoundingBoxes
+
+
+start_angle = 20 
+side_scanrange      = 60          
+front_scanrange     = 16
+distancefromwall    = 0.7
+
+x   = np.zeros((360))
+fw_d = 0 # front wall distance
+rw_dist_actual = 0 
+lw_dist_actual = 0
+fw_sec_one = 0
+fw_sec_two = 0
+lw_d = 0 # left wall distance
+rw_d = 0 # right wall distance
+
+kp = 4
+
+
+class PID:
+    def __init__(self, Kp, Ki, Kd):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.prev_error = 0
+        self.integral = 0
+        self.prev_time   = 0
+   
+
+    def output(self, error, time):
+        
+        dt = time - self.prev_time 
+        if dt > 0:
+            self.integral += error * dt
+            derivative = (error - self.prev_error) / dt
+            u = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
+            self.prev_error = error 
+            self.prev_time = time 
+            
+            return u
+
 
 class MazeRunner(object):
 
@@ -16,12 +60,14 @@ class MazeRunner(object):
         self.object_detection_sub = rospy.Subscriber("/darknet_ros/bounding_boxes", BoundingBoxes, self.object_detection_callback)
         self.image_sub = rospy.Subscriber("/camera/image_raw",Image,self.camera_callback)
         self.state_sub = rospy.Subscriber("/turtle_state", Int16, self.state_callback)
+        self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
         #self.object_detection_sub = rospy.Subscriber("/darknet_ros/bounding_boxes", BoundingBox, self.object_detection_callback)
         self.moveTurtlebot3_object = MoveTurtlebot3()
         self.cv_image = Image()
         self.objects = BoundingBoxes()
         self.twist = Twist()
         self.state = Int16()
+        self.scan = LaserScan()
         # self.twist.linear.x = 0.0
         self.twist.linear.y = 0.0
         self.twist.linear.z = 0.0
@@ -33,6 +79,26 @@ class MazeRunner(object):
         self.cx_int = 0
         self.cx_upper = 0
         self.stop_sign_detected = False
+        self.pid = PID()
+
+    def scan_callback(self, data):
+        x  = list(data.ranges)
+	
+        for i in range(360):
+            if x[i] == inf:
+                x[i] = 7
+            if x[i] == 0:
+                x[i] = 6
+
+            # store scan data 
+        #TODO: ADD PARAMETERIZATION BACK INTO THE STUFF DOWN BELOW
+        lw_d= np.mean(x[30:30+55])          # left wall distance 
+        rw_d= np.mean(x[330-55:330])  # right wall distance
+        
+        lw_dist_actual = min(x[30:85])
+        rw_dist_actual = min(x[275:330])
+        fw_sec_one = min(x[0:30])
+        fw_sec_two = min(x[330:360])     
 
     def state_callback(self, data):
         self.state = data
