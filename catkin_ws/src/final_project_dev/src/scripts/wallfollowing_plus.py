@@ -64,7 +64,7 @@ def scan(data):
 	rw_dist_actual = min(x[275:330])
 	fw_sec_one = min(x[0:30])
 	fw_sec_two = min(x[330:360]) 
-	#fw_d= min(min(fw_sec_one, fw_sec_two)) # front wall distance
+	fw_d= min(float(fw_sec_one), float(fw_sec_two)) # front wall distance
 
 def wallfollowing_controller():
 	global kp,s_d,x,y_r,y_l
@@ -81,6 +81,8 @@ def wallfollowing_controller():
 	side_min_dist = 0.15
 	front_min_dist = 0.2
 
+	switch_condition = False 
+
 	while not rospy.is_shutdown():
 		delta = lw_d-rw_d   # distance error
 
@@ -89,46 +91,44 @@ def wallfollowing_controller():
 		t=time.time()
 		P_output  = pid.output(delta,t)
 
-		print(P_output)
-
-
 		if rw_dist_actual >= side_min_dist and lw_dist_actual >= side_min_dist and fw_sec_one >= front_min_dist and fw_sec_two >= front_min_dist:
-			#normal behavior 
-			rospy.loginfo('NORMAL BEHAVIOR DETECTED')
+		# 	switch_condition = True 
+
+		# if rw_dist_actual >= side_min_dist and lw_dist_actual >= side_min_dist and fw_sec_one >= front_min_dist and fw_sec_two >= front_min_dist:
+		# if switch_condition is False:
+			#wall following:  
+			# rospy.loginfo('WALL FOLLOWING MODE')
+			rospy.loginfo('NORMAL BEHAVIOR')
 			angular_zvel = np.clip(P_output,-1.2,1.2)
-			linear_vel   = np.clip((fw_d-0.2),-0.1,0.2)
+			linear_vel   = np.clip((fw_d-0.2),-0.1,0.4)
 
 		else: 
-			rospy.loginfo('DUMB SHIT DETECTED')
+			#obstacle avoidance 
+			# rospy.loginfo('OBSTACLE AVOIDANCE MODE')
+			# if rw_dist_actual >= side_min_dist and lw_dist_actual >= side_min_dist and fw_sec_one >= front_min_dist and fw_sec_two >= front_min_dist:
+			# 	linear_vel = 0.2 
+			# 	angular_vel = 0 
+			# else: 
 			#select the max of the mins and proceed forward 
+			rospy.loginfo('OBSTACLE DETECTED')
 			all_distances = [int(rw_dist_actual), int(lw_dist_actual), int(fw_sec_one), int(fw_sec_two)]
 			max_val_index = all_distances.index(max(all_distances))
-	
+		
 			#TODO: if max_index = 0 (RIGHT)
 			if max_val_index == 0 or max_val_index == 3: 
-				linear_vel = 0 
+				linear_vel = np.clip((fw_d-0.2),-0.1,0.4)
 				angular_zvel = -1 
 
 			#TODO: elif max_index = 1 (LEFT)
 			elif max_val_index == 1 or max_val_index == 2: 
-				linear_vel = 0
+				linear_vel = np.clip((fw_d-0.2),-0.1,0.4)
 				angular_zvel = 1
-
-			# #TODO: elif max_index = 2 (FRONT WALL - S1)
-			# elif max_val_index == 2: 
-
-			# #TODO: elif max_index = 3 (FRONT WALL - S2)
-			# elif max_val_index == 3: 
-  
-	
-
-		#print(x)
 
 		print('min distance right sector / right wall  =', rw_dist_actual)
 		print('min distance left sector / left wall  =', lw_dist_actual)
 		print('min distance front sector #1 =', fw_sec_one)
 		print('min distance front sector #2 =', fw_sec_two)
-		# print('linear_vel=',linear_vel,' angular_vel=',angular_zvel)
+		print('linear_vel=',linear_vel,' angular_vel=',angular_zvel)
 		rospy.loginfo('\n') 
 
 		# #publish cmd_vel
