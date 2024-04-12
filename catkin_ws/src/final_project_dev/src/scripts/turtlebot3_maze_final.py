@@ -32,6 +32,7 @@ class MazeRunner(object):
         self.twist.angular.y = 0.0
         self.twist.angular.z = 0.0
         self.stop_sign_detected = False
+
     
     def wall_cmd_callback(self, data):
         self.wall_twist = data
@@ -49,7 +50,6 @@ class MazeRunner(object):
                 print(self.objects.bounding_boxes[i].probability)
                 print("stop sign detected")
                 self.stop_sign_detected = True
-
 
     def clean_up(self):
         self.moveTurtlebot3_object.clean_class()

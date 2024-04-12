@@ -92,15 +92,12 @@ if __name__=="__main__":
         print(msg)
         while not rospy.is_shutdown():
             key = getKey()
-            if key == 'w' or key == 'W' :
-                print("switching to wall follwoing")
+            if key == 'w' or key == 'W' or key == 'o' or key == 'O':
+                print("switching to wall follwoing/obstacle avoidance")
                 state = 1
-            elif key == 'o' or key == 'O' :
-                print("switching to obstacle avoidance")
-                state = 2
             elif key == 'l' or key== 'L' :
                 print("switching to line following")
-                state = 3
+                state = 2
             elif key == 's' or key == 'S' or key == ' ':
                 state = 0
                 print("stopping MazeRunner")
