@@ -64,9 +64,13 @@ class LineFollower(object):
         """
 
         # Threshold the HSV image to get only yellow colors
-        # values found using line_finder
-        l_yellow = np.array([15,5,25])
-        u_yellow = np.array([75,255,255])
+        # values found using line_finder @ about 1:00 p.m
+        # l_yellow = np.array([15,5,25])
+        # u_yellow = np.array([75,255,255])
+
+        # values @ 10:00 a.m.
+        l_yellow = np.array([20,30,60])
+        u_yellow = np.array([50,170,255])
         mask = cv2.inRange(hsv, l_yellow, u_yellow)
         mask_upper = cv2.inRange(hsv_upper, l_yellow, u_yellow)
         # whole_mask = cv2.inRange(self.cv_image, l_yellow, u_yellow)
@@ -116,6 +120,24 @@ class LineFollower(object):
 
         # print(np.sum(mask))
         # print(self.objects)
+        # if (np.sum(mask)==0 and np.sum(mask_upper)==0):
+        #     self.twist.linear.x = 0.0
+        #     self.twist.angular.z = 0.15
+        #     self.cx_int = 0
+        #     self.cx_prev = 0
+        # elif (np.sum(mask)==0):
+        #     self.twist.linear.x = 0.04
+        #     self.twist.angular.z = -0.001*(self.cx_upper-width/2)
+        # else:
+        #     print("error = " ,cx_error*-0.002 )
+        #     print("int = ", self.cx_int*-0.0001)
+        #     self.twist.linear.x = 0.05
+        #     self.twist.angular.z = -0.002*cx_error  - 0.0001*self.cx_int #- 0.001*(error_derivative)
+        #     print("twist:", self.twist.angular.z)
+        #     self.cx_prev = cx_error
+        #     self.cx_int = self.cx_int + cx_error
+
+        tol = 20
         if (np.sum(mask)==0 and np.sum(mask_upper)==0):
             self.twist.linear.x = 0.0
             self.twist.angular.z = 0.15
@@ -124,12 +146,17 @@ class LineFollower(object):
         elif (np.sum(mask)==0):
             self.twist.linear.x = 0.04
             self.twist.angular.z = -0.001*(self.cx_upper-width/2)
+        # elif (self.cx > width/2 - tol and self.cx < width/2 + tol):
+        elif (np.abs(cx_error) < 10):
+            self.twist.linear.x = 0.08
+            self.twist.angular.z = 0
+            self.cx_int = 0  
+        elif (np.abs(cx_error) > 100):
+            self.twist.linear.x = 0
+            self.twist.angular.z = -0.15*np.sign(cx_error)     
         else:
-            print("error = " ,cx_error*-0.002 )
-            print("int = ", self.cx_int*-0.0001)
-            self.twist.linear.x = 0.05
-            self.twist.angular.z = -0.002*cx_error  - 0.0001*self.cx_int #- 0.001*(error_derivative)
-            print("twist:", self.twist.angular.z)
+            self.twist.linear.x = 0.08
+            self.twist.angular.z = -0.003*cx_error - 0.0001*self.cx_int#- 0.002*(error_derivative) - 0.0001*self.cx_int
             self.cx_prev = cx_error
             self.cx_int = self.cx_int + cx_error
 
