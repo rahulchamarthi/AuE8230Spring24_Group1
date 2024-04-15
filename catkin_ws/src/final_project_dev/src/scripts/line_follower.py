@@ -14,7 +14,7 @@ class LineFollower(object):
         self.image_sub = rospy.Subscriber("/camera/image_raw",Image,self.camera_callback)
         self.state_sub = rospy.Subscriber("/turtle_state", Int16, self.state_callback)
         self.vel_pub = rospy.Publisher("/line_cmd_vel", Twist, queue_size=10)
-        self.cv_image = Image()
+        self.cv_image = None
         self.state = Int16
         self.twist = Twist()
         self.twist.linear.x = 0
@@ -34,6 +34,7 @@ class LineFollower(object):
 
     def camera_callback(self, data):
         # We select bgr8 because its the opneCV encoding by default
+        # print("in line_follower_callback")
         self.cv_image = self.bridge_object.imgmsg_to_cv2(data, desired_encoding="bgr8")
         #cv_image = self.bridge_object.imgmsg_to_cv2(data, desired_encoding="rgb8")    
           
@@ -42,6 +43,8 @@ class LineFollower(object):
 
         # We get image dimensions and crop the parts of the image we dont need
         height, width, channels = self.cv_image.shape
+        # im_norm = np.zeros([240,320,3])
+        # im_norm = cv2.normalize(self.cv_image, im_norm, 0, 255, cv2.NORM_MINMAX)
         # crop_img = cv_image[int((height/2)+100):int((height/2)+120)][1:int(width)]
         crop_img = self.cv_image[int((height/2))+80:-1,:]
         # crop_img_upper = cv_image[int((height/2))+10:-60,:]
@@ -61,13 +64,17 @@ class LineFollower(object):
         """
 
         # Threshold the HSV image to get only yellow colors
-        # lower_yellow = np.array([20,100,100])
-        # upper_yellow = np.array([50,255,255])
+        # values found using line_finder
+        l_yellow = np.array([15,5,25])
+        u_yellow = np.array([75,255,255])
+        mask = cv2.inRange(hsv, l_yellow, u_yellow)
+        mask_upper = cv2.inRange(hsv_upper, l_yellow, u_yellow)
+        # whole_mask = cv2.inRange(self.cv_image, l_yellow, u_yellow)
 
-        l_blue = np.array([100,100,20])
-        u_blue = np.array([140,255,255])
-        mask = cv2.inRange(hsv, l_blue, u_blue)
-        mask_upper = cv2.inRange(hsv_upper, l_blue, u_blue)
+        # l_blue = np.array([100,100,20])
+        # u_blue = np.array([140,255,255])
+        # mask = cv2.inRange(hsv, l_blue, u_blue)
+        # mask_upper = cv2.inRange(hsv_upper, l_blue, u_blue)
 
         # Calculate centroid of the blob of binary image using ImageMoments
         m = cv2.moments(mask, False)
@@ -85,16 +92,17 @@ class LineFollower(object):
             self.cx_upper, cy_upper = height/2, width/2    
 
 
-        # # Draw the centroid in the resultut image
-        # # cv2.circle(img, center, radius, color[, thickness[, lineType[, shift]]]) 
-        # cv2.circle(mask,(int(self.cx), int(cy)), 10,(0,0,255),-1)
-        # # cv2.circle(mask_upper, (int(cx2), int(cy2)), 10, (0,0,255), -1)
-        # cv2.imshow("Original", cv_image)
-        # cv2.imshow("MASK", mask)
-        # cv2.imshow("MASK UPPER", mask_upper)
-        # cv2.imshow("hsv", hsv)
-        # cv2.imshow("hsv upper", hsv_upper)
-        # cv2.waitKey(1)
+        # Draw the centroid in the resultut image
+        # cv2.circle(img, center, radius, color[, thickness[, lineType[, shift]]]) 
+        cv2.circle(mask,(int(self.cx), int(cy)), 10,(0,0,255),-1)
+        # cv2.circle(mask_upper, (int(cx2), int(cy2)), 10, (0,0,255), -1)
+        cv2.imshow("Original", self.cv_image)
+        # cv2.imshow("norm", whole_mask)
+        cv2.imshow("MASK", mask)
+        cv2.imshow("MASK UPPER", mask_upper)
+        cv2.imshow("hsv", hsv)
+        cv2.imshow("hsv upper", hsv_upper)
+        cv2.waitKey(1)
 
         #################################
         ###   ENTER CONTROLLER HERE   ###
@@ -108,20 +116,20 @@ class LineFollower(object):
 
         # print(np.sum(mask))
         # print(self.objects)
-        if (np.sum(mask)==0 and np.sum(mask_upper)==0 and self.stop_sign_detected!=True):
+        if (np.sum(mask)==0 and np.sum(mask_upper)==0):
             self.twist.linear.x = 0.0
             self.twist.angular.z = 0.15
             self.cx_int = 0
             self.cx_prev = 0
-        elif (np.sum(mask)==0 and self.stop_sign_detected!=True):
+        elif (np.sum(mask)==0):
             self.twist.linear.x = 0.04
             self.twist.angular.z = -0.001*(self.cx_upper-width/2)
-        elif (self.stop_sign_detected == True):
-            self.twist.linear.x = 0.0
-            self.twist.angular.z = 0.0
         else:
-            self.twist.linear.x = 0.06
-            self.twist.angular.z = -0.003*cx_error - 0.002*(error_derivative) - 0.0001*self.cx_int
+            print("error = " ,cx_error*-0.002 )
+            print("int = ", self.cx_int*-0.0001)
+            self.twist.linear.x = 0.05
+            self.twist.angular.z = -0.002*cx_error  - 0.0001*self.cx_int #- 0.001*(error_derivative)
+            print("twist:", self.twist.angular.z)
             self.cx_prev = cx_error
             self.cx_int = self.cx_int + cx_error
 
@@ -150,7 +158,7 @@ def main():
     rospy.on_shutdown(shutdownhook)
 
     while not ctrl_c:
-        if lineFollower_object.state.data == 2:
+        if lineFollower_object.state.data == 2 and lineFollower_object.cv_image is not None:
             lineFollower_object.line_follower()
         rate.sleep()
 

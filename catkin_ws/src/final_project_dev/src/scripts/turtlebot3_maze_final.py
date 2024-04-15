@@ -48,7 +48,7 @@ class MazeRunner(object):
         for i in range(len(self.objects.bounding_boxes)):
             if (self.objects.bounding_boxes[i].Class == "stop sign" and self.objects.bounding_boxes[i].probability > 0.5):
                 print(self.objects.bounding_boxes[i].probability)
-                print("stop sign detected")
+                # print("stop sign detected")
                 self.stop_sign_detected = True
 
     def clean_up(self):
@@ -60,21 +60,22 @@ class MazeRunner(object):
         self.twist.angular.z = 0
 
     def main(self):
-        if self.stop_sign_detected == True:
-            print("stop sign detected")
-            self.set_velocities_to_zero()
-        elif self.state.data == 0:
-            self.set_velocities_to_zero()
-        elif self.state.data == 1:
-            # self.wall_follower.wall_following()
-            self.twist = self.wall_twist
-        elif self.state.data == 2:
-            self.twist = self.line_twist
-        else:
-            print("no state data published")
-            self.set_velocities_to_zero()
+        if not rospy.is_shutdown():
+            if self.stop_sign_detected == True:
+                print("stop sign detected")
+                self.set_velocities_to_zero()
+            elif self.state.data == 0:
+                self.set_velocities_to_zero()
+            elif self.state.data == 1:
+                # self.wall_follower.wall_following()
+                self.twist = self.wall_twist
+            elif self.state.data == 2:
+                self.twist = self.line_twist
+            else:
+                print("no state data published")
+                self.set_velocities_to_zero()
 
-        self.moveTurtlebot3_object.move_robot(self.twist)                   
+            self.moveTurtlebot3_object.move_robot(self.twist)                   
 
 
 def main():

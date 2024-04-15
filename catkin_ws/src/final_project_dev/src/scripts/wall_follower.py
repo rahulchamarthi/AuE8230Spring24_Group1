@@ -14,6 +14,7 @@ class WallFollower(object):
         self.vel_pub = rospy.Publisher("/wall_cmd_vel", Twist, queue_size=10)
         self.state = Int16()
         self.twist = Twist()
+        self.scan = LaserScan()
         self.twist.linear.x = 0
         self.twist.linear.y = 0
         self.twist.linear.z = 0
@@ -23,7 +24,7 @@ class WallFollower(object):
         # self.state.data = 0
         self.kp = 4
         # self.s_d = 
-        self.x = np.zeros(360)
+        self.laserscan = np.zeros(360)
         # self.y = 
         # self.y_r = 
         # self.y_l =
@@ -31,6 +32,7 @@ class WallFollower(object):
         self.front_min_dist = 0.2
         self.distance_from_wall = 0.7
         self.pid = PID(1,0,1)
+        self.pid_oa=PID(20,0,5)
         self.lw_d = 0
         self.rw_d = 0
         self.fw_d = 0
@@ -43,13 +45,15 @@ class WallFollower(object):
         self.side_scanrange = 60
 
     def scan_callback(self, data):
-        self.x  = list(data.ranges)
+        self.scan  = data
+
 
     def state_callback(self, data):
         self.state = data    
 	    
 
     def wallfollowing_controller(self):
+        self.laserscan  = np.array(self.scan.ranges)
         # global kp,s_d,x,y_r,y_l
         # global distancefromwall
         
@@ -58,20 +62,24 @@ class WallFollower(object):
         # front_min_dist = 0.2
 
         for i in range(360):
-            if self.x[i] == np.inf:
-                self.x[i] = 7
-            if self.x[i] == 0:
-                self.x[i] = 6
+            if self.laserscan[i] == np.inf:
+                self.laserscan[i] = 7
+            if self.laserscan[i] == 0:
+                self.laserscan[i] = 6
 
             # store scan data 
         #TODO: ADD PARAMETERIZATION BACK INTO THE STUFF DOWN BELOW
-        self.lw_d= np.mean(self.x[30:30+55])          # left wall distance 
-        self.rw_d= np.mean(self.x[330-55:330])  # right wall distance
+        self.lw_d= np.mean(self.laserscan[30:30+55])          # left wall distance 
+        self.rw_d= np.mean(self.laserscan[330-55:330])  # right wall distance
         
-        self.lw_dist_actual = min(self.x[30:85])
-        self.rw_dist_actual = min(self.x[275:330])
-        self.fw_sec_one = min(self.x[0:30])
-        self.fw_sec_two = min(self.x[330:360])
+        self.lw_dist_actual = min(self.laserscan[30:85])
+        self.rw_dist_actual = min(self.laserscan[275:330])
+        self.fw_sec_one = min(self.laserscan[0:30])
+        self.fw_sec_two = min(self.laserscan[330:360])
+        # self.lw_d=np.mean(self.laserscan[30:90])
+        # self.rw_d=np.mean(self.laserscan[270:330])
+        # self.fw_sec_one = np.mean(self.laserscan[0:60])
+        # self.fw_sec_two = np.mean(self.laserscan[300:360])
 
         switch_condition = False 
 
@@ -80,8 +88,33 @@ class WallFollower(object):
 
         
         # pid=PID(1,0,1) is this expected behavior?
+
         t=time.time()
         P_output  = self.pid.output(delta,t)
+
+        # self.fw_d=np.mean(self.laserscan[0:5])+np.mean(self.laserscan[360-5:360])/2 
+        self.fw_d= min(float(self.fw_sec_one), float(self.fw_sec_two))
+        
+        # print(len(self.laserscan))
+        # if self.laserscan[90]>3 and self.laserscan[270]>3 and self.fw_d>3:
+        #     linear_vel   = np.clip((self.fw_d-0.2),-0.1,0.2)
+        #     angular_zvel = 0
+        #     print('no wall')
+        
+        # elif self.fw_d < 0.5:
+            
+        #     linear_vel   = 0.007#np.clip((fw_d-0.2),-0.1,0.2)
+        #     angular_zvel = np.clip(self.pid_oa.output((self.fw_sec_two-self.fw_sec_one),t),-1.2,1.2)
+        #     print("OA-f")     
+    
+        # elif self.fw_sec_one < 1 and self.fw_sec_two <1 and self.fw_d < 1:
+        #     print("OAf1")
+        #     linear_vel   = 0.007#np.clip((fw_d-0.2),-0.1,0.2)
+        #     angular_zvel = np.clip(self.pid.output(error,t),-0.8,0.8)#angular_zvel = np.clip(pid_oa.output((fw_sec_two-fw_sec_one),t),-1.2,1.2)
+        # else:
+        #     linear_vel   = np.clip((self.fw_d-0.2),-0.1,0.2)
+        #     angular_zvel = np.clip(self.pid.output(error,t),-0.8,0.8)
+        #     print("WF")
 
         if (self.rw_dist_actual >= self.side_min_dist and 
                 self.lw_dist_actual >= self.side_min_dist and 

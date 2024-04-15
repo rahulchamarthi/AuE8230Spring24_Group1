@@ -107,7 +107,15 @@ class LineFollower(object):
         # print(-0.003*cx_error, - 0.001*(error_derivative), - 0.0001*self.cx_int)
 
         # print(np.sum(mask))
+
+        # if cx > self.width/2 - tol and cx < self.width/2 + tol:
+        #     return 1
+        # if cx < self.width/2 - tol:
+        #     return 2
+        # if cx > self.width/2 + tol:
+        #     return 3
         # print(self.objects)
+        tol = 20
         if (np.sum(mask)==0 and np.sum(mask_upper)==0):
             self.twist.linear.x = 0.0
             self.twist.angular.z = 0.15
@@ -116,11 +124,20 @@ class LineFollower(object):
         elif (np.sum(mask)==0):
             self.twist.linear.x = 0.04
             self.twist.angular.z = -0.001*(self.cx_upper-width/2)
+        # elif (self.cx > width/2 - tol and self.cx < width/2 + tol):
+        elif (np.abs(cx_error) < 10):
+            self.twist.linear.x = 0.06
+            self.twist.angular.z = 0
+            self.cx_int = 0  
+        elif (np.abs(cx_error) > 100):
+            self.twist.linear.x = 0
+            self.twist.angular.z = -0.15*np.sign(cx_error)     
         else:
             self.twist.linear.x = 0.06
-            self.twist.angular.z = -0.003*cx_error - 0.002*(error_derivative) - 0.0001*self.cx_int
+            self.twist.angular.z = -0.003*cx_error - 0.0001*self.cx_int#- 0.002*(error_derivative) - 0.0001*self.cx_int
             self.cx_prev = cx_error
             self.cx_int = self.cx_int + cx_error
+
 
         # self.twist.angular.z = -0.001*(cx-width/2)
         # rospy.loginfo("ANGULAR VALUE SENT===>"+str(self.twist.angular.z))
