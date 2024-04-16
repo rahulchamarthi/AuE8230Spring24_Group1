@@ -28,6 +28,7 @@ class LineFollower(object):
         self.cx = 0
         self.cx_int = 0
         self.cx_upper = 0
+        self.cx_upper_prev = 0
 
     def state_callback(self, data):
         self.state = data    
@@ -69,8 +70,14 @@ class LineFollower(object):
         # u_yellow = np.array([75,255,255])
 
         # values @ 10:00 a.m.
-        l_yellow = np.array([20,30,60])
-        u_yellow = np.array([50,170,255])
+        # l_yellow = np.array([20,30,60])
+        # u_yellow = np.array([50,170,255])
+
+        # values @ 3:30 p.m.
+        l_yellow = np.array([20,0,40])
+        u_yellow = np.array([50,255,255])
+
+
         mask = cv2.inRange(hsv, l_yellow, u_yellow)
         mask_upper = cv2.inRange(hsv_upper, l_yellow, u_yellow)
         # whole_mask = cv2.inRange(self.cv_image, l_yellow, u_yellow)
@@ -114,6 +121,7 @@ class LineFollower(object):
         # self.twist.angular.z = -0.1*(cx2-cx)/np.abs(cx2-cx)
         # this is the basic line following implementation it is a simple proportional controller keeping the blob centroid in the middle of the screen. We will work on a more robust solution for the final project
         cx_error = (self.cx-width/2)
+        cx_upper_error = (self.cx_upper-width/2)
         error_derivative = cx_error-self.cx_prev
 
         # print(-0.003*cx_error, - 0.001*(error_derivative), - 0.0001*self.cx_int)
@@ -140,25 +148,29 @@ class LineFollower(object):
         tol = 20
         if (np.sum(mask)==0 and np.sum(mask_upper)==0):
             self.twist.linear.x = 0.0
-            self.twist.angular.z = 0.15
+            self.twist.angular.z = 0.15*np.sign(self.cx_upper_prev)
             self.cx_int = 0
             self.cx_prev = 0
         elif (np.sum(mask)==0):
             self.twist.linear.x = 0.04
             self.twist.angular.z = -0.001*(self.cx_upper-width/2)
+            self.cx_upper_prev = cx_upper_error
         # elif (self.cx > width/2 - tol and self.cx < width/2 + tol):
         elif (np.abs(cx_error) < 10):
             self.twist.linear.x = 0.08
             self.twist.angular.z = 0
-            self.cx_int = 0  
+            self.cx_int = 0 
+            self.cx_upper_prev = cx_upper_error 
         elif (np.abs(cx_error) > 100):
             self.twist.linear.x = 0
-            self.twist.angular.z = -0.15*np.sign(cx_error)     
+            self.twist.angular.z = -0.15*np.sign(cx_error)  
+            self.cx_upper_prev = cx_upper_error   
         else:
             self.twist.linear.x = 0.08
             self.twist.angular.z = -0.003*cx_error - 0.0001*self.cx_int#- 0.002*(error_derivative) - 0.0001*self.cx_int
             self.cx_prev = cx_error
             self.cx_int = self.cx_int + cx_error
+            self.cx_upper_prev = cx_upper_error
 
         # self.twist.angular.z = -0.001*(cx-width/2)
         # rospy.loginfo("ANGULAR VALUE SENT===>"+str(self.twist.angular.z))

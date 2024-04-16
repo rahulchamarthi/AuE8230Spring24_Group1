@@ -2,6 +2,7 @@
 import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16
+import time
 
 from move_robot import MoveTurtlebot3
 from darknet_ros_msgs.msg import BoundingBoxes
@@ -32,6 +33,7 @@ class MazeRunner(object):
         self.twist.angular.y = 0.0
         self.twist.angular.z = 0.0
         self.stop_sign_detected = False
+        self.stop_complete = False
     
     def wall_cmd_callback(self, data):
         self.wall_twist = data
@@ -45,7 +47,7 @@ class MazeRunner(object):
     def object_detection_callback(self, data):
         self.objects = data
         for i in range(len(self.objects.bounding_boxes)):
-            if (self.objects.bounding_boxes[i].Class == "stop sign" and self.objects.bounding_boxes[i].probability > 0.5):
+            if (self.objects.bounding_boxes[i].Class == "stop sign" and self.objects.bounding_boxes[i].probability > 0.8):
                 print(self.objects.bounding_boxes[i].probability)
                 print("stop sign detected")
                 self.stop_sign_detected = True
@@ -60,9 +62,14 @@ class MazeRunner(object):
         self.twist.angular.z = 0
 
     def main(self):
-        if self.stop_sign_detected == True:
+        if self.stop_sign_detected == True and self.stop_complete == False:
+            t = time.time()
             print("stop sign detected")
             self.set_velocities_to_zero()
+            self.moveTurtlebot3_object.move_robot(self.twist) 
+            while (time.time()-t < 3):
+                continue
+            self.stop_complete = True
         elif self.state.data == 0:
             self.set_velocities_to_zero()
         elif self.state.data == 1:
